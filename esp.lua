@@ -29,6 +29,21 @@
          │   ├─> Full: 4 lines for box
          │   └─> 3D: 12 lines + connectors
          │
+         ├─> Skeleton ESP
+         │   ├─> Joint Connections
+         │   │   ├─> Head -> Torso
+         │   │   ├─> Torso -> Arms
+         │   │   ├─> Torso -> Legs
+         │   │   └─> Arms/Legs Segments
+         │   ├─> Dynamic Updates
+         │   └─> Color + Thickness
+         │
+         ├─> Chams
+         │   ├─> Character Highlight
+         │   ├─> Fill Color + Transparency
+         │   ├─> Outline Color + Thickness
+         │   └─> Occluded Color (through walls)
+         │
          ├─> Tracer
          │   └─> line from origin (4 positions)
          │
@@ -108,7 +123,8 @@ local Drawings = {
     Healthbars = {},
     Names = {},
     Distances = {},
-    Snaplines = {}
+    Snaplines = {},
+    Skeleton = {}
 }
 
 local Colors = {
@@ -120,6 +136,8 @@ local Colors = {
     Distance = Color3.fromRGB(200, 200, 200),
     Rainbow = nil
 }
+
+local Highlights = {}
 
 local Settings = {
     Enabled = false,
@@ -154,7 +172,18 @@ local Settings = {
     RainbowEnabled = false,
     RainbowBoxes = false,
     RainbowTracers = false,
-    RainbowText = false
+    RainbowText = false,
+    ChamsEnabled = false,
+    ChamsOutlineColor = Color3.fromRGB(255, 255, 255),
+    ChamsFillColor = Color3.fromRGB(255, 0, 0),
+    ChamsOccludedColor = Color3.fromRGB(150, 0, 0),
+    ChamsTransparency = 0.5,
+    ChamsOutlineTransparency = 0,
+    ChamsOutlineThickness = 0.1,
+    SkeletonESP = false,
+    SkeletonColor = Color3.fromRGB(255, 255, 255),
+    SkeletonThickness = 1.5,
+    SkeletonTransparency = 1
 }
 
 local function CreateESP(player)
@@ -224,6 +253,57 @@ local function CreateESP(player)
     snapline.Color = Colors.Enemy
     snapline.Thickness = 1
     
+    local highlight = Instance.new("Highlight")
+    highlight.FillColor = Settings.ChamsFillColor
+    highlight.OutlineColor = Settings.ChamsOutlineColor
+    highlight.FillTransparency = Settings.ChamsTransparency
+    highlight.OutlineTransparency = Settings.ChamsOutlineTransparency
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Enabled = Settings.ChamsEnabled
+    
+    Highlights[player] = highlight
+    
+    local skeleton = {
+        -- Spine & Head
+        Head = Drawing.new("Line"),
+        Neck = Drawing.new("Line"),
+        UpperSpine = Drawing.new("Line"),
+        LowerSpine = Drawing.new("Line"),
+        
+        -- Left Arm
+        LeftShoulder = Drawing.new("Line"),
+        LeftUpperArm = Drawing.new("Line"),
+        LeftLowerArm = Drawing.new("Line"),
+        LeftHand = Drawing.new("Line"),
+        
+        -- Right Arm
+        RightShoulder = Drawing.new("Line"),
+        RightUpperArm = Drawing.new("Line"),
+        RightLowerArm = Drawing.new("Line"),
+        RightHand = Drawing.new("Line"),
+        
+        -- Left Leg
+        LeftHip = Drawing.new("Line"),
+        LeftUpperLeg = Drawing.new("Line"),
+        LeftLowerLeg = Drawing.new("Line"),
+        LeftFoot = Drawing.new("Line"),
+        
+        -- Right Leg
+        RightHip = Drawing.new("Line"),
+        RightUpperLeg = Drawing.new("Line"),
+        RightLowerLeg = Drawing.new("Line"),
+        RightFoot = Drawing.new("Line")
+    }
+    
+    for _, line in pairs(skeleton) do
+        line.Visible = false
+        line.Color = Settings.SkeletonColor
+        line.Thickness = Settings.SkeletonThickness
+        line.Transparency = Settings.SkeletonTransparency
+    end
+    
+    Drawings.Skeleton[player] = skeleton
+    
     Drawings.ESP[player] = {
         Box = box,
         Tracer = tracer,
@@ -235,15 +315,28 @@ end
 
 local function RemoveESP(player)
     local esp = Drawings.ESP[player]
-    if not esp then return end
+    if esp then
+        for _, obj in pairs(esp.Box) do obj:Remove() end
+        esp.Tracer:Remove()
+        for _, obj in pairs(esp.HealthBar) do obj:Remove() end
+        for _, obj in pairs(esp.Info) do obj:Remove() end
+        esp.Snapline:Remove()
+        Drawings.ESP[player] = nil
+    end
     
-    for _, line in pairs(esp.Box) do line:Remove() end
-    esp.Tracer:Remove()
-    for _, obj in pairs(esp.HealthBar) do obj:Remove() end
-    for _, text in pairs(esp.Info) do text:Remove() end
-    esp.Snapline:Remove()
+    local highlight = Highlights[player]
+    if highlight then
+        highlight:Destroy()
+        Highlights[player] = nil
+    end
     
-    Drawings.ESP[player] = nil
+    local skeleton = Drawings.Skeleton[player]
+    if skeleton then
+        for _, line in pairs(skeleton) do
+            line:Remove()
+        end
+        Drawings.Skeleton[player] = nil
+    end
 end
 
 local function GetPlayerColor(player)
@@ -288,19 +381,79 @@ local function GetTracerOrigin()
 end
 
 local function UpdateESP(player)
+    if not Settings.Enabled then return end
+    
     local esp = Drawings.ESP[player]
     if not esp then return end
     
     local character = player.Character
-    local humanoid = character and character:FindFirstChild("Humanoid")
-    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-    
-    if not character or not humanoid or not rootPart or humanoid.Health <= 0 then
+    if not character then 
+        -- Hide all drawings if character doesn't exist
         for _, obj in pairs(esp.Box) do obj.Visible = false end
         esp.Tracer.Visible = false
         for _, obj in pairs(esp.HealthBar) do obj.Visible = false end
         for _, obj in pairs(esp.Info) do obj.Visible = false end
         esp.Snapline.Visible = false
+        
+        local skeleton = Drawings.Skeleton[player]
+        if skeleton then
+            for _, line in pairs(skeleton) do
+                line.Visible = false
+            end
+        end
+        return 
+    end
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then 
+        -- Hide all drawings if rootPart doesn't exist
+        for _, obj in pairs(esp.Box) do obj.Visible = false end
+        esp.Tracer.Visible = false
+        for _, obj in pairs(esp.HealthBar) do obj.Visible = false end
+        for _, obj in pairs(esp.Info) do obj.Visible = false end
+        esp.Snapline.Visible = false
+        
+        local skeleton = Drawings.Skeleton[player]
+        if skeleton then
+            for _, line in pairs(skeleton) do
+                line.Visible = false
+            end
+        end
+        return 
+    end
+    
+    -- Early screen check to hide all drawings if player is off screen
+    local _, isOnScreen = Camera:WorldToViewportPoint(rootPart.Position)
+    if not isOnScreen then
+        for _, obj in pairs(esp.Box) do obj.Visible = false end
+        esp.Tracer.Visible = false
+        for _, obj in pairs(esp.HealthBar) do obj.Visible = false end
+        for _, obj in pairs(esp.Info) do obj.Visible = false end
+        esp.Snapline.Visible = false
+        
+        local skeleton = Drawings.Skeleton[player]
+        if skeleton then
+            for _, line in pairs(skeleton) do
+                line.Visible = false
+            end
+        end
+        return
+    end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then
+        for _, obj in pairs(esp.Box) do obj.Visible = false end
+        esp.Tracer.Visible = false
+        for _, obj in pairs(esp.HealthBar) do obj.Visible = false end
+        for _, obj in pairs(esp.Info) do obj.Visible = false end
+        esp.Snapline.Visible = false
+        
+        local skeleton = Drawings.Skeleton[player]
+        if skeleton then
+            for _, line in pairs(skeleton) do
+                line.Visible = false
+            end
+        end
         return
     end
     
@@ -566,6 +719,134 @@ local function UpdateESP(player)
     else
         esp.Snapline.Visible = false
     end
+    
+    local highlight = Highlights[player]
+    if highlight then
+        if Settings.ChamsEnabled and character then
+            highlight.Parent = character
+            highlight.FillColor = Settings.ChamsFillColor
+            highlight.OutlineColor = Settings.ChamsOutlineColor
+            highlight.FillTransparency = Settings.ChamsTransparency
+            highlight.OutlineTransparency = Settings.ChamsOutlineTransparency
+            highlight.Enabled = true
+        else
+            highlight.Enabled = false
+        end
+    end
+    
+    if Settings.SkeletonESP then
+        local function getBonePositions(character)
+            if not character then return nil end
+            
+            local bones = {
+                Head = character:FindFirstChild("Head"),
+                UpperTorso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"),
+                LowerTorso = character:FindFirstChild("LowerTorso") or character:FindFirstChild("Torso"),
+                RootPart = character:FindFirstChild("HumanoidRootPart"),
+                
+                -- Left Arm
+                LeftUpperArm = character:FindFirstChild("LeftUpperArm") or character:FindFirstChild("Left Arm"),
+                LeftLowerArm = character:FindFirstChild("LeftLowerArm") or character:FindFirstChild("Left Arm"),
+                LeftHand = character:FindFirstChild("LeftHand") or character:FindFirstChild("Left Arm"),
+                
+                -- Right Arm
+                RightUpperArm = character:FindFirstChild("RightUpperArm") or character:FindFirstChild("Right Arm"),
+                RightLowerArm = character:FindFirstChild("RightLowerArm") or character:FindFirstChild("Right Arm"),
+                RightHand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm"),
+                
+                -- Left Leg
+                LeftUpperLeg = character:FindFirstChild("LeftUpperLeg") or character:FindFirstChild("Left Leg"),
+                LeftLowerLeg = character:FindFirstChild("LeftLowerLeg") or character:FindFirstChild("Left Leg"),
+                LeftFoot = character:FindFirstChild("LeftFoot") or character:FindFirstChild("Left Leg"),
+                
+                -- Right Leg
+                RightUpperLeg = character:FindFirstChild("RightUpperLeg") or character:FindFirstChild("Right Leg"),
+                RightLowerLeg = character:FindFirstChild("RightLowerLeg") or character:FindFirstChild("Right Leg"),
+                RightFoot = character:FindFirstChild("RightFoot") or character:FindFirstChild("Right Leg")
+            }
+            
+            -- Verify we have the minimum required bones
+            if not (bones.Head and bones.UpperTorso) then return nil end
+            
+            return bones
+        end
+        
+        local function drawBone(from, to, line)
+            if not from or not to then 
+                line.Visible = false
+                return 
+            end
+            
+            -- Get center positions of the parts
+            local fromPos = (from.CFrame * CFrame.new(0, 0, 0)).Position
+            local toPos = (to.CFrame * CFrame.new(0, 0, 0)).Position
+            
+            -- Convert to screen positions with proper depth check
+            local fromScreen, fromVisible = Camera:WorldToViewportPoint(fromPos)
+            local toScreen, toVisible = Camera:WorldToViewportPoint(toPos)
+            
+            -- Only show if both points are visible and in front of camera
+            if not (fromVisible and toVisible) or fromScreen.Z < 0 or toScreen.Z < 0 then
+                line.Visible = false
+                return
+            end
+            
+            -- Check if points are within screen bounds
+            local screenBounds = Camera.ViewportSize
+            if fromScreen.X < 0 or fromScreen.X > screenBounds.X or
+               fromScreen.Y < 0 or fromScreen.Y > screenBounds.Y or
+               toScreen.X < 0 or toScreen.X > screenBounds.X or
+               toScreen.Y < 0 or toScreen.Y > screenBounds.Y then
+                line.Visible = false
+                return
+            end
+            
+            -- Update line with screen positions
+            line.From = Vector2.new(fromScreen.X, fromScreen.Y)
+            line.To = Vector2.new(toScreen.X, toScreen.Y)
+            line.Color = Settings.SkeletonColor
+            line.Thickness = Settings.SkeletonThickness
+            line.Transparency = Settings.SkeletonTransparency
+            line.Visible = true
+        end
+        
+        local bones = getBonePositions(character)
+        if bones then
+            local skeleton = Drawings.Skeleton[player]
+            if skeleton then
+                -- Spine & Head
+                drawBone(bones.Head, bones.UpperTorso, skeleton.Head)
+                drawBone(bones.UpperTorso, bones.LowerTorso, skeleton.UpperSpine)
+                
+                -- Left Arm Chain
+                drawBone(bones.UpperTorso, bones.LeftUpperArm, skeleton.LeftShoulder)
+                drawBone(bones.LeftUpperArm, bones.LeftLowerArm, skeleton.LeftUpperArm)
+                drawBone(bones.LeftLowerArm, bones.LeftHand, skeleton.LeftLowerArm)
+                
+                -- Right Arm Chain
+                drawBone(bones.UpperTorso, bones.RightUpperArm, skeleton.RightShoulder)
+                drawBone(bones.RightUpperArm, bones.RightLowerArm, skeleton.RightUpperArm)
+                drawBone(bones.RightLowerArm, bones.RightHand, skeleton.RightLowerArm)
+                
+                -- Left Leg Chain
+                drawBone(bones.LowerTorso, bones.LeftUpperLeg, skeleton.LeftHip)
+                drawBone(bones.LeftUpperLeg, bones.LeftLowerLeg, skeleton.LeftUpperLeg)
+                drawBone(bones.LeftLowerLeg, bones.LeftFoot, skeleton.LeftLowerLeg)
+                
+                -- Right Leg Chain
+                drawBone(bones.LowerTorso, bones.RightUpperLeg, skeleton.RightHip)
+                drawBone(bones.RightUpperLeg, bones.RightLowerLeg, skeleton.RightUpperLeg)
+                drawBone(bones.RightLowerLeg, bones.RightFoot, skeleton.RightLowerLeg)
+            end
+        end
+    else
+        local skeleton = Drawings.Skeleton[player]
+        if skeleton then
+            for _, line in pairs(skeleton) do
+                line.Visible = false
+            end
+        end
+    end
 end
 
 local function DisableESP()
@@ -578,6 +859,14 @@ local function DisableESP()
             for _, obj in pairs(esp.Info) do obj.Visible = false end
             esp.Snapline.Visible = false
         end
+        
+        -- Also hide skeleton
+        local skeleton = Drawings.Skeleton[player]
+        if skeleton then
+            for _, line in pairs(skeleton) do
+                line.Visible = false
+            end
+        end
     end
 end
 
@@ -586,6 +875,8 @@ local function CleanupESP()
         RemoveESP(player)
     end
     Drawings.ESP = {}
+    Drawings.Skeleton = {}
+    Highlights = {}
 end
 
 local Window = Fluent:CreateWindow({
@@ -676,6 +967,79 @@ do
     })
     TracerOriginDropdown:OnChanged(function(Value)
         Settings.TracerOrigin = Value
+    end)
+    
+    local ChamsSection = Tabs.ESP:AddSection("Chams")
+    
+    local ChamsToggle = ChamsSection:AddToggle("ChamsEnabled", {
+        Title = "Enable Chams",
+        Default = false
+    })
+    ChamsToggle:OnChanged(function()
+        Settings.ChamsEnabled = ChamsToggle.Value
+    end)
+    
+    local ChamsFillColor = ChamsSection:AddColorpicker("ChamsFillColor", {
+        Title = "Fill Color",
+        Description = "Color for visible parts",
+        Default = Settings.ChamsFillColor
+    })
+    ChamsFillColor:OnChanged(function(Value)
+        Settings.ChamsFillColor = Value
+    end)
+    
+    local ChamsOccludedColor = ChamsSection:AddColorpicker("ChamsOccludedColor", {
+        Title = "Occluded Color",
+        Description = "Color for parts behind walls",
+        Default = Settings.ChamsOccludedColor
+    })
+    ChamsOccludedColor:OnChanged(function(Value)
+        Settings.ChamsOccludedColor = Value
+    end)
+    
+    local ChamsOutlineColor = ChamsSection:AddColorpicker("ChamsOutlineColor", {
+        Title = "Outline Color",
+        Description = "Color for character outline",
+        Default = Settings.ChamsOutlineColor
+    })
+    ChamsOutlineColor:OnChanged(function(Value)
+        Settings.ChamsOutlineColor = Value
+    end)
+    
+    local ChamsTransparency = ChamsSection:AddSlider("ChamsTransparency", {
+        Title = "Fill Transparency",
+        Description = "Transparency of the fill color",
+        Default = 0.5,
+        Min = 0,
+        Max = 1,
+        Rounding = 2
+    })
+    ChamsTransparency:OnChanged(function(Value)
+        Settings.ChamsTransparency = Value
+    end)
+    
+    local ChamsOutlineTransparency = ChamsSection:AddSlider("ChamsOutlineTransparency", {
+        Title = "Outline Transparency",
+        Description = "Transparency of the outline",
+        Default = 0,
+        Min = 0,
+        Max = 1,
+        Rounding = 2
+    })
+    ChamsOutlineTransparency:OnChanged(function(Value)
+        Settings.ChamsOutlineTransparency = Value
+    end)
+    
+    local ChamsOutlineThickness = ChamsSection:AddSlider("ChamsOutlineThickness", {
+        Title = "Outline Thickness",
+        Description = "Thickness of the outline",
+        Default = 0.1,
+        Min = 0,
+        Max = 1,
+        Rounding = 2
+    })
+    ChamsOutlineThickness:OnChanged(function(Value)
+        Settings.ChamsOutlineThickness = Value
     end)
     
     local HealthSection = Tabs.ESP:AddSection("Health ESP")
@@ -920,3 +1284,67 @@ Fluent:Notify({
     Content = "Loaded successfully!",
     Duration = 5
 })
+
+local SkeletonSection = Tabs.ESP:AddSection("Skeleton ESP")
+
+local SkeletonESPToggle = SkeletonSection:AddToggle("SkeletonESP", {
+    Title = "Skeleton ESP",
+    Default = false
+})
+SkeletonESPToggle:OnChanged(function()
+    Settings.SkeletonESP = SkeletonESPToggle.Value
+end)
+
+local SkeletonColor = SkeletonSection:AddColorpicker("SkeletonColor", {
+    Title = "Skeleton Color",
+    Default = Settings.SkeletonColor
+})
+SkeletonColor:OnChanged(function(Value)
+    Settings.SkeletonColor = Value
+    for _, player in ipairs(Players:GetPlayers()) do
+        local skeleton = Drawings.Skeleton[player]
+        if skeleton then
+            for _, line in pairs(skeleton) do
+                line.Color = Value
+            end
+        end
+    end
+end)
+
+local SkeletonThickness = SkeletonSection:AddSlider("SkeletonThickness", {
+    Title = "Line Thickness",
+    Default = 1,
+    Min = 1,
+    Max = 3,
+    Rounding = 1
+})
+SkeletonThickness:OnChanged(function(Value)
+    Settings.SkeletonThickness = Value
+    for _, player in ipairs(Players:GetPlayers()) do
+        local skeleton = Drawings.Skeleton[player]
+        if skeleton then
+            for _, line in pairs(skeleton) do
+                line.Thickness = Value
+            end
+        end
+    end
+end)
+
+local SkeletonTransparency = SkeletonSection:AddSlider("SkeletonTransparency", {
+    Title = "Transparency",
+    Default = 1,
+    Min = 0,
+    Max = 1,
+    Rounding = 2
+})
+SkeletonTransparency:OnChanged(function(Value)
+    Settings.SkeletonTransparency = Value
+    for _, player in ipairs(Players:GetPlayers()) do
+        local skeleton = Drawings.Skeleton[player]
+        if skeleton then
+            for _, line in pairs(skeleton) do
+                line.Transparency = Value
+            end
+        end
+    end
+end)
