@@ -23,7 +23,7 @@ A universal ESP script that works in any game
 ## Usage
 Works on all major executors (tested on Solara)
 ```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/wa0101/Roblox-ESP/refs/heads/main/esp.lua",true))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Limitrious/Roblox-ESP/refs/heads/main/esp.lua",true))()
 ```
 
 ## Controls
