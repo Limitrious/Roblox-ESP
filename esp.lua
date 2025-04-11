@@ -880,8 +880,8 @@ local function CleanupESP()
 end
 
 local Window = Fluent:CreateWindow({
-    Title = "WA Universal ESP",
-    SubTitle = "by WA",
+    Title = "Universal ESP",
+    SubTitle = "by WA, updated by LMRT",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = false,
@@ -929,6 +929,14 @@ do
     })
     ShowTeamToggle:OnChanged(function()
         Settings.ShowTeam = ShowTeamToggle.Value
+    end)
+    
+    local NameESPToggle = MainSection:AddToggle("NameESP", {
+        Title = "Name ESP",
+        Default = false
+    })
+    NameESPToggle:OnChanged(function()
+        Settings.NameESP = NameESPToggle.Value
     end)
     
     local BoxSection = Tabs.ESP:AddSection("Box ESP")
@@ -1059,6 +1067,70 @@ do
     })
     HealthStyleDropdown:OnChanged(function(Value)
         Settings.HealthStyle = Value
+    end)
+    
+    local SkeletonSection = Tabs.ESP:AddSection("Skeleton ESP")
+    
+    local SkeletonESPToggle = SkeletonSection:AddToggle("SkeletonESP", {
+        Title = "Skeleton ESP",
+        Default = false
+    })
+    SkeletonESPToggle:OnChanged(function()
+        Settings.SkeletonESP = SkeletonESPToggle.Value
+    end)
+    
+    local SkeletonColor = SkeletonSection:AddColorpicker("SkeletonColor", {
+        Title = "Skeleton Color",
+        Default = Settings.SkeletonColor
+    })
+    SkeletonColor:OnChanged(function(Value)
+        Settings.SkeletonColor = Value
+        for _, player in ipairs(Players:GetPlayers()) do
+            local skeleton = Drawings.Skeleton[player]
+            if skeleton then
+                for _, line in pairs(skeleton) do
+                    line.Color = Value
+                end
+            end
+        end
+    end)
+    
+    local SkeletonThickness = SkeletonSection:AddSlider("SkeletonThickness", {
+        Title = "Line Thickness",
+        Default = 1,
+        Min = 1,
+        Max = 3,
+        Rounding = 1
+    })
+    SkeletonThickness:OnChanged(function(Value)
+        Settings.SkeletonThickness = Value
+        for _, player in ipairs(Players:GetPlayers()) do
+            local skeleton = Drawings.Skeleton[player]
+            if skeleton then
+                for _, line in pairs(skeleton) do
+                    line.Thickness = Value
+                end
+            end
+        end
+    end)
+    
+    local SkeletonTransparency = SkeletonSection:AddSlider("SkeletonTransparency", {
+        Title = "Transparency",
+        Default = 1,
+        Min = 0,
+        Max = 1,
+        Rounding = 2
+    })
+    SkeletonTransparency:OnChanged(function(Value)
+        Settings.SkeletonTransparency = Value
+        for _, player in ipairs(Players:GetPlayers()) do
+            local skeleton = Drawings.Skeleton[player]
+            if skeleton then
+                for _, line in pairs(skeleton) do
+                    line.Transparency = Value
+                end
+            end
+        end
     end)
 end
 
@@ -1215,8 +1287,8 @@ do
     InterfaceManager:SetLibrary(Fluent)
     SaveManager:IgnoreThemeSettings()
     SaveManager:SetIgnoreIndexes({})
-    InterfaceManager:SetFolder("WAUniversalESP")
-    SaveManager:SetFolder("WAUniversalESP/configs")
+    InterfaceManager:SetFolder("LMRTUniversalESP")
+    SaveManager:SetFolder("LMRTUniversalESP/configs")
     
     InterfaceManager:BuildInterfaceSection(Tabs.Config)
     SaveManager:BuildConfigSection(Tabs.Config)
@@ -1280,71 +1352,7 @@ end
 Window:SelectTab(1)
 
 Fluent:Notify({
-    Title = "WA Universal ESP",
+    Title = "LMRT Universal ESP",
     Content = "Loaded successfully!",
     Duration = 5
 })
-
-local SkeletonSection = Tabs.ESP:AddSection("Skeleton ESP")
-
-local SkeletonESPToggle = SkeletonSection:AddToggle("SkeletonESP", {
-    Title = "Skeleton ESP",
-    Default = false
-})
-SkeletonESPToggle:OnChanged(function()
-    Settings.SkeletonESP = SkeletonESPToggle.Value
-end)
-
-local SkeletonColor = SkeletonSection:AddColorpicker("SkeletonColor", {
-    Title = "Skeleton Color",
-    Default = Settings.SkeletonColor
-})
-SkeletonColor:OnChanged(function(Value)
-    Settings.SkeletonColor = Value
-    for _, player in ipairs(Players:GetPlayers()) do
-        local skeleton = Drawings.Skeleton[player]
-        if skeleton then
-            for _, line in pairs(skeleton) do
-                line.Color = Value
-            end
-        end
-    end
-end)
-
-local SkeletonThickness = SkeletonSection:AddSlider("SkeletonThickness", {
-    Title = "Line Thickness",
-    Default = 1,
-    Min = 1,
-    Max = 3,
-    Rounding = 1
-})
-SkeletonThickness:OnChanged(function(Value)
-    Settings.SkeletonThickness = Value
-    for _, player in ipairs(Players:GetPlayers()) do
-        local skeleton = Drawings.Skeleton[player]
-        if skeleton then
-            for _, line in pairs(skeleton) do
-                line.Thickness = Value
-            end
-        end
-    end
-end)
-
-local SkeletonTransparency = SkeletonSection:AddSlider("SkeletonTransparency", {
-    Title = "Transparency",
-    Default = 1,
-    Min = 0,
-    Max = 1,
-    Rounding = 2
-})
-SkeletonTransparency:OnChanged(function(Value)
-    Settings.SkeletonTransparency = Value
-    for _, player in ipairs(Players:GetPlayers()) do
-        local skeleton = Drawings.Skeleton[player]
-        if skeleton then
-            for _, line in pairs(skeleton) do
-                line.Transparency = Value
-            end
-        end
-    end
-end)
