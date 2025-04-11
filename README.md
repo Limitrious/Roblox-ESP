@@ -1,6 +1,6 @@
-# WA Universal ESP
+# Universal ESP
 
-A universal ESP script that works in any game
+A universal ESP script that works in any game, originally made by wa0101
 
 ## Features
 - Box ESP (Corner, Full, 3D)
