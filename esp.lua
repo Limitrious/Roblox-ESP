@@ -159,7 +159,7 @@ local Settings = {
     HealthBarSide = "Left",
     HealthTextSuffix = "HP",
     NameESP = false,
-    NameMode = "DisplayName",
+    NameMode = "UserName",
     ShowDistance = true,
     DistanceUnit = "studs",
     TextSize = 14,
@@ -700,7 +700,7 @@ local function UpdateESP(player)
     end
     
     if Settings.NameESP then
-        esp.Info.Name.Text = player.DisplayName
+        esp.Info.Name.Text = player.Name
         esp.Info.Name.Position = Vector2.new(
             boxPosition.X + boxWidth/2,
             boxPosition.Y - 20
